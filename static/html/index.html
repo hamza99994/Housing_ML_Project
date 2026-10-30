@@ -1,0 +1,855 @@
+<!-- 
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Housing ML Studio</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+    <div class="container">
+
+        <header>
+            <h1>Housing ML Studio</h1>
+            <p>House Price Prediction & Classification</p>
+        </header>
+
+        <main>
+            <form id="predictionForm">
+
+                <h2>Model Selection</h2>
+
+                <div class="field">
+                    <label for="model">Choose ML Model</label>
+                    <select id="model" required>
+                        <option value="">Select a model</option>
+                    </select>
+                </div>
+
+                <p id="modelDescription"></p>
+
+                <h2>House Details</h2>
+
+                <div class="form-grid">
+
+                    <div class="field">
+                        <label for="area">Area (sq. ft.)</label>
+                        <input type="number" id="area" min="1" required>
+                    </div>
+
+                    <div class="field">
+                        <label for="bedrooms">Bedrooms</label>
+                        <input type="number" id="bedrooms" min="0" step="1" required>
+                    </div>
+
+                    <div class="field">
+                        <label for="bathrooms">Bathrooms</label>
+                        <input type="number" id="bathrooms" min="0" step="1" required>
+                    </div>
+
+                    <div class="field">
+                        <label for="stories">Stories</label>
+                        <input type="number" id="stories" min="1" step="1" required>
+                    </div>
+
+                    <div class="field">
+                        <label for="parking">Parking Spaces</label>
+                        <input type="number" id="parking" min="0" step="1" required>
+                    </div>
+
+                    <div class="field">
+                        <label for="mainroad">Main Road</label>
+                        <select id="mainroad">
+                            <option value="yes">Yes</option>
+                            <option value="no">No</option>
+                        </select>
+                    </div>
+
+                    <div class="field">
+                        <label for="guestroom">Guest Room</label>
+                        <select id="guestroom">
+                            <option value="no">No</option>
+                            <option value="yes">Yes</option>
+                        </select>
+                    </div>
+
+                    <div class="field">
+                        <label for="basement">Basement</label>
+                        <select id="basement">
+                            <option value="no">No</option>
+                            <option value="yes">Yes</option>
+                        </select>
+                    </div>
+
+                    <div class="field">
+                        <label for="hotwaterheating">Hot Water Heating</label>
+                        <select id="hotwaterheating">
+                            <option value="no">No</option>
+                            <option value="yes">Yes</option>
+                        </select>
+                    </div>
+
+                    <div class="field">
+                        <label for="airconditioning">Air Conditioning</label>
+                        <select id="airconditioning">
+                            <option value="no">No</option>
+                            <option value="yes">Yes</option>
+                        </select>
+                    </div>
+
+                    <div class="field">
+                        <label for="prefarea">Preferred Area</label>
+                        <select id="prefarea">
+                            <option value="no">No</option>
+                            <option value="yes">Yes</option>
+                        </select>
+                    </div>
+
+                    <div class="field" id="furnishingField">
+                        <label for="furnishingstatus">Furnishing Status</label>
+                        <select id="furnishingstatus">
+                            <option value="furnished">Furnished</option>
+                            <option value="semi-furnished">Semi-Furnished</option>
+                            <option value="unfurnished">Unfurnished</option>
+                        </select>
+                    </div>
+
+                    <div class="field hidden" id="priceField">
+                        <label for="price">House Price (PKR)</label>
+                        <input type="number" id="price" min="1">
+                    </div>
+
+                </div>
+
+                <button type="submit" id="predictButton">
+                    Predict
+                </button>
+
+            </form>
+
+            <section id="resultBox" class="result hidden" aria-live="polite">
+                <h2>Prediction Result</h2>
+                <p id="resultModel"></p>
+                <div id="predictionResult"></div>
+            </section>
+
+        </main>
+
+        <footer>
+            <p>Housing ML Studio | Machine Learning Project</p>
+        </footer>
+
+    </div>
+
+    <script>
+        const modelSelect = document.getElementById("model");
+        const form = document.getElementById("predictionForm");
+        const resultBox = document.getElementById("resultBox");
+        const predictButton = document.getElementById("predictButton");
+
+        const classificationModels = [
+            "logistic_regression",
+            "decision_tree_gini",
+            "decision_tree_entropy",
+            "random_forest_classifier",
+            "svm_classifier",
+            "naive_bayes"
+        ];
+
+        const modelNames = {
+            linear_regression: "Linear Regression",
+            logistic_regression: "Logistic Regression",
+            decision_tree_gini: "Decision Tree (Gini)",
+            decision_tree_entropy: "Decision Tree (Entropy)",
+            regression_tree: "Regression Tree",
+            random_forest_classifier: "Random Forest Classifier",
+            random_forest_regressor: "Random Forest Regressor",
+            svm_classifier: "SVM Classifier",
+            svr_regressor: "SVR Regressor",
+            naive_bayes: "Naive Bayes"
+        };
+
+        // Load models from FastAPI
+        async function loadModels() {
+            try {
+                const response = await fetch("/models");
+
+                if (!response.ok) {
+                    throw new Error("Could not load models");
+                }
+
+                const data = await response.json();
+
+                data.available_models.forEach(model => {
+                    const option = document.createElement("option");
+                    option.value = model;
+                    option.textContent = modelNames[model] || model;
+                    modelSelect.appendChild(option);
+                });
+
+            } catch (error) {
+                document.getElementById("modelDescription").textContent =
+                    "Unable to load models. Check the FastAPI server.";
+            }
+        }
+
+        // Change form based on selected model
+        modelSelect.addEventListener("change", function () {
+            const isClassification =
+                classificationModels.includes(modelSelect.value);
+
+            document.getElementById("priceField")
+                .classList.toggle("hidden", !isClassification);
+
+            document.getElementById("furnishingField")
+                .classList.toggle("hidden", isClassification);
+
+            document.getElementById("price").required = isClassification;
+
+            document.getElementById("modelDescription").textContent =
+                !modelSelect.value ? "" :
+                isClassification
+                    ? "This model predicts the furnishing status of a house."
+                    : "This model predicts the price of a house.";
+
+            resultBox.classList.add("hidden");
+        });
+
+        // Send prediction request
+        form.addEventListener("submit", async function (event) {
+            event.preventDefault();
+
+            const model = modelSelect.value;
+
+            if (!model) {
+                alert("Please select a model.");
+                return;
+            }
+
+            const isClassification = classificationModels.includes(model);
+
+            const data = {
+                area: Number(document.getElementById("area").value),
+                bedrooms: Number(document.getElementById("bedrooms").value),
+                bathrooms: Number(document.getElementById("bathrooms").value),
+                stories: Number(document.getElementById("stories").value),
+                parking: Number(document.getElementById("parking").value),
+                mainroad: document.getElementById("mainroad").value,
+                guestroom: document.getElementById("guestroom").value,
+                basement: document.getElementById("basement").value,
+                hotwaterheating: document.getElementById("hotwaterheating").value,
+                airconditioning: document.getElementById("airconditioning").value,
+                prefarea: document.getElementById("prefarea").value,
+                price: isClassification
+                    ? Number(document.getElementById("price").value)
+                    : null,
+                furnishingstatus: isClassification
+                    ? null
+                    : document.getElementById("furnishingstatus").value
+            };
+
+            predictButton.disabled = true;
+            predictButton.textContent = "Predicting...";
+            resultBox.classList.add("hidden");
+
+            try {
+                const response = await fetch(
+                    "/predict/" + model,
+                    {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json"
+                        },
+                        body: JSON.stringify(data)
+                    }
+                );
+
+                const result = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(
+                        typeof result.detail === "string"
+                            ? result.detail
+                            : "Prediction failed. Check your inputs."
+                    );
+                }
+
+                document.getElementById("resultModel").textContent =
+                    "Model: " + modelNames[model];
+
+                const prediction = document.getElementById("predictionResult");
+
+                if (isClassification) {
+                    prediction.textContent = result.prediction;
+                } else {
+                    prediction.textContent =
+                        "PKR " + Number(result.prediction).toLocaleString();
+                }
+
+                resultBox.classList.remove("hidden");
+
+            } catch (error) {
+                document.getElementById("resultModel").textContent = "Error";
+                document.getElementById("predictionResult").textContent =
+                    error.message;
+                resultBox.classList.remove("hidden");
+            }
+
+            predictButton.disabled = false;
+            predictButton.textContent = "Predict";
+        });
+
+        loadModels();
+    </script>
+
+</body>
+</html> -->
+
+
+
+
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Housing ML Studio</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+<div class="container">
+
+    <header>
+        <h1>Housing ML Studio</h1>
+        <p>Machine Learning Prediction & Model Comparison</p>
+    </header>
+
+    <main>
+
+        <section class="panel">
+            <h2>Prediction Settings</h2>
+
+            <div class="form-grid">
+                <div class="field">
+                    <label for="mode">Prediction Mode</label>
+                    <select id="mode">
+                        <option value="single">Single Model</option>
+                        <option value="compare">Compare Models</option>
+                    </select>
+                </div>
+
+                <div class="field" id="modelField">
+                    <label for="model">Machine Learning Model</label>
+                    <select id="model" required>
+                        <option value="">Select a model</option>
+                    </select>
+                </div>
+
+                <div class="field hidden" id="taskField">
+                    <label for="task">Comparison Type</label>
+                    <select id="task">
+                        <option value="regression">House Price Prediction</option>
+                        <option value="classification">Furnishing Classification</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="info-box" id="modelInfo">
+                Choose a model to see how it works.
+            </div>
+        </section>
+
+        <section class="panel">
+            <h2>House Details</h2>
+
+            <form id="predictionForm">
+
+                <div class="form-grid">
+
+                    <div class="field">
+                        <label for="area">Area (sq. ft.)</label>
+                        <input type="number" id="area" min="1" required>
+                    </div>
+
+                    <div class="field">
+                        <label for="bedrooms">Bedrooms</label>
+                        <input type="number" id="bedrooms" min="0" step="1" required>
+                    </div>
+
+                    <div class="field">
+                        <label for="bathrooms">Bathrooms</label>
+                        <input type="number" id="bathrooms" min="0" step="1" required>
+                    </div>
+
+                    <div class="field">
+                        <label for="stories">Stories</label>
+                        <input type="number" id="stories" min="1" step="1" required>
+                    </div>
+
+                    <div class="field">
+                        <label for="parking">Parking Spaces</label>
+                        <input type="number" id="parking" min="0" step="1" required>
+                    </div>
+
+                    <div class="field">
+                        <label for="mainroad">Main Road</label>
+                        <select id="mainroad">
+                            <option value="yes">Yes</option>
+                            <option value="no">No</option>
+                        </select>
+                    </div>
+
+                    <div class="field">
+                        <label for="guestroom">Guest Room</label>
+                        <select id="guestroom">
+                            <option value="no">No</option>
+                            <option value="yes">Yes</option>
+                        </select>
+                    </div>
+
+                    <div class="field">
+                        <label for="basement">Basement</label>
+                        <select id="basement">
+                            <option value="no">No</option>
+                            <option value="yes">Yes</option>
+                        </select>
+                    </div>
+
+                    <div class="field">
+                        <label for="hotwaterheating">Hot Water Heating</label>
+                        <select id="hotwaterheating">
+                            <option value="no">No</option>
+                            <option value="yes">Yes</option>
+                        </select>
+                    </div>
+
+                    <div class="field">
+                        <label for="airconditioning">Air Conditioning</label>
+                        <select id="airconditioning">
+                            <option value="no">No</option>
+                            <option value="yes">Yes</option>
+                        </select>
+                    </div>
+
+                    <div class="field">
+                        <label for="prefarea">Preferred Area</label>
+                        <select id="prefarea">
+                            <option value="no">No</option>
+                            <option value="yes">Yes</option>
+                        </select>
+                    </div>
+
+                    <div class="field" id="furnishingField">
+                        <label for="furnishingstatus">Furnishing Status</label>
+                        <select id="furnishingstatus">
+                            <option value="furnished">Furnished</option>
+                            <option value="semi-furnished">Semi-Furnished</option>
+                            <option value="unfurnished">Unfurnished</option>
+                        </select>
+                    </div>
+
+                    <div class="field hidden" id="priceField">
+                        <label for="price">House Price (PKR)</label>
+                        <input type="number" id="price" min="1">
+                    </div>
+
+                </div>
+
+                <button type="submit" id="predictButton">
+                    Run Prediction
+                </button>
+
+            </form>
+        </section>
+
+        <section id="resultSection" class="panel hidden" aria-live="polite">
+            <h2 id="resultTitle">Prediction Results</h2>
+            <div id="results"></div>
+        </section>
+
+    </main>
+
+    <footer>
+        <p>Housing ML Studio | Machine Learning Project</p>
+    </footer>
+
+</div>
+
+<script>
+
+    // 1. Model information
+    const modelNames = {
+        linear_regression: "Linear Regression",
+        logistic_regression: "Logistic Regression",
+        decision_tree_gini: "Decision Tree (Gini)",
+        decision_tree_entropy: "Decision Tree (Entropy)",
+        regression_tree: "Regression Tree",
+        random_forest_classifier: "Random Forest Classifier",
+        random_forest_regressor: "Random Forest Regressor",
+        svm_classifier: "SVM Classifier",
+        svr_regressor: "SVR Regressor",
+        naive_bayes: "Naive Bayes"
+    };
+
+    const modelDescriptions = {
+        linear_regression:
+            "Uses a linear equation to estimate house prices.",
+
+        logistic_regression:
+            "Uses statistical probabilities to classify furnishing status.",
+
+        decision_tree_gini:
+            "Uses decision rules and Gini impurity to classify houses.",
+
+        decision_tree_entropy:
+            "Uses decision rules and entropy to classify houses.",
+
+        regression_tree:
+            "Splits houses into groups to predict numerical prices.",
+
+        random_forest_classifier:
+            "Combines multiple decision trees for classification.",
+
+        random_forest_regressor:
+            "Combines multiple regression trees to estimate prices.",
+
+        svm_classifier:
+            "Uses Support Vector Machines to classify furnishing status.",
+
+        svr_regressor:
+            "Uses Support Vector Regression to estimate house prices.",
+
+        naive_bayes:
+            "Uses Bayes' theorem and probability to classify houses."
+    };
+
+    const regressionModels = [
+        "linear_regression",
+        "regression_tree",
+        "random_forest_regressor",
+        "svr_regressor"
+    ];
+
+    const classificationModels = [
+        "logistic_regression",
+        "decision_tree_gini",
+        "decision_tree_entropy",
+        "random_forest_classifier",
+        "svm_classifier",
+        "naive_bayes"
+    ];
+
+    const modeSelect = document.getElementById("mode");
+    const modelSelect = document.getElementById("model");
+    const taskSelect = document.getElementById("task");
+    const form = document.getElementById("predictionForm");
+
+    let availableModels = [];
+
+    // 2. Load models from FastAPI
+    async function loadModels() {
+        try {
+            const response = await fetch("/models");
+
+            if (!response.ok) {
+                throw new Error("Could not load models.");
+            }
+
+            const data = await response.json();
+            availableModels = data.available_models;
+
+            availableModels.forEach(model => {
+                const option = document.createElement("option");
+                option.value = model;
+                option.textContent = modelNames[model] || model;
+                modelSelect.appendChild(option);
+            });
+
+        } catch (error) {
+            document.getElementById("modelInfo").textContent =
+                "Unable to load models. Check your FastAPI server.";
+        }
+    }
+
+    // 3. Update interface when model or mode changes
+    function updateInterface() {
+        const comparing = modeSelect.value === "compare";
+
+        document.getElementById("modelField")
+            .classList.toggle("hidden", comparing);
+
+        document.getElementById("taskField")
+            .classList.toggle("hidden", !comparing);
+
+        const isClassification = comparing
+            ? taskSelect.value === "classification"
+            : classificationModels.includes(modelSelect.value);
+
+        document.getElementById("priceField")
+            .classList.toggle("hidden", !isClassification);
+
+        document.getElementById("furnishingField")
+            .classList.toggle("hidden", isClassification);
+
+        document.getElementById("price").required = isClassification;
+
+        const info = document.getElementById("modelInfo");
+
+        if (comparing) {
+            info.textContent = isClassification
+                ? "Compare six classification models using the same house details."
+                : "Compare four regression models using the same house details.";
+        } else {
+            info.textContent = modelDescriptions[modelSelect.value]
+                || "Choose a model to see how it works.";
+        }
+
+        document.getElementById("predictButton").textContent =
+            comparing ? "Compare Models" : "Run Prediction";
+
+        document.getElementById("resultSection")
+            .classList.add("hidden");
+    }
+
+    modeSelect.addEventListener("change", updateInterface);
+    modelSelect.addEventListener("change", updateInterface);
+    taskSelect.addEventListener("change", updateInterface);
+
+    // 4. Collect house details
+    function getHouseData(isClassification) {
+        const value = id => document.getElementById(id).value;
+
+        return {
+            area: Number(value("area")),
+            bedrooms: Number(value("bedrooms")),
+            bathrooms: Number(value("bathrooms")),
+            stories: Number(value("stories")),
+            parking: Number(value("parking")),
+            mainroad: value("mainroad"),
+            guestroom: value("guestroom"),
+            basement: value("basement"),
+            hotwaterheating: value("hotwaterheating"),
+            airconditioning: value("airconditioning"),
+            prefarea: value("prefarea"),
+            price: isClassification ? Number(value("price")) : null,
+            furnishingstatus: isClassification
+                ? null
+                : value("furnishingstatus")
+        };
+    }
+
+    // 5. Call a selected model
+    async function predict(model, houseData) {
+        const response = await fetch("/predict/" + model, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(houseData)
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+            throw new Error(
+                typeof result.detail === "string"
+                    ? result.detail
+                    : "Prediction failed for " + modelNames[model]
+            );
+        }
+
+        return result;
+    }
+
+    // 6. Format results
+    function formatPrediction(prediction, isClassification) {
+        if (isClassification) {
+            return prediction;
+        }
+
+        return "PKR " + Number(prediction).toLocaleString();
+    }
+
+    // 7. Display single prediction
+    function showSingleResult(model, result, isClassification) {
+        const results = document.getElementById("results");
+        results.innerHTML = "";
+
+        const card = document.createElement("div");
+        card.className = "single-result";
+
+        const name = document.createElement("p");
+        name.textContent = "Model: " + modelNames[model];
+
+        const value = document.createElement("h3");
+        value.textContent = formatPrediction(
+            result.prediction,
+            isClassification
+        );
+
+        card.appendChild(name);
+        card.appendChild(value);
+        results.appendChild(card);
+    }
+
+    // 8. Display model comparison
+    function showComparison(models, predictions, isClassification) {
+        const results = document.getElementById("results");
+        results.innerHTML = "";
+
+        const maxValue = isClassification
+            ? 0
+            : Math.max(...predictions.map(p => Number(p.prediction)), 0);
+
+        predictions.forEach((prediction, index) => {
+            const card = document.createElement("div");
+            card.className = "comparison-card";
+
+            const heading = document.createElement("div");
+            heading.className = "comparison-heading";
+
+            const name = document.createElement("strong");
+            name.textContent = modelNames[models[index]];
+
+            const value = document.createElement("span");
+            value.textContent = formatPrediction(
+                prediction.prediction,
+                isClassification
+            );
+
+            heading.appendChild(name);
+            heading.appendChild(value);
+            card.appendChild(heading);
+
+            if (!isClassification) {
+                const track = document.createElement("div");
+                track.className = "bar-track";
+
+                const bar = document.createElement("div");
+                bar.className = "bar";
+
+                const percentage = maxValue > 0
+                    ? Math.max(0, Number(prediction.prediction)) / maxValue * 100
+                    : 0;
+
+                bar.style.width = percentage + "%";
+
+                track.appendChild(bar);
+                card.appendChild(track);
+            }
+
+            results.appendChild(card);
+        });
+
+        if (isClassification) {
+            const counts = {};
+
+            predictions.forEach(result => {
+                const label = result.prediction;
+                counts[label] = (counts[label] || 0) + 1;
+            });
+
+            const summary = document.createElement("p");
+            summary.className = "comparison-summary";
+            summary.textContent = "Model agreement: " +
+                Object.entries(counts)
+                    .map(([label, count]) => count + " predicted " + label)
+                    .join(", ");
+
+            results.appendChild(summary);
+        }
+    }
+
+    // 9. Handle form submission
+    form.addEventListener("submit", async function (event) {
+        event.preventDefault();
+
+        const comparing = modeSelect.value === "compare";
+
+        const isClassification = comparing
+            ? taskSelect.value === "classification"
+            : classificationModels.includes(modelSelect.value);
+
+        const modelsToRun = comparing
+            ? (isClassification ? classificationModels : regressionModels)
+            : [modelSelect.value];
+
+        if (!comparing && !modelSelect.value) {
+            alert("Please select a model.");
+            return;
+        }
+
+        const missingModels = modelsToRun.filter(
+            model => !availableModels.includes(model)
+        );
+
+        if (missingModels.length > 0) {
+            alert("Some models are not loaded in FastAPI.");
+            return;
+        }
+
+        const houseData = getHouseData(isClassification);
+        const button = document.getElementById("predictButton");
+
+        button.disabled = true;
+        button.textContent = "Processing...";
+
+        document.getElementById("resultSection")
+            .classList.add("hidden");
+
+        try {
+            const predictions = await Promise.all(
+                modelsToRun.map(model => predict(model, houseData))
+            );
+
+            document.getElementById("resultTitle").textContent =
+                comparing ? "Model Comparison" : "Prediction Result";
+
+            if (comparing) {
+                showComparison(
+                    modelsToRun,
+                    predictions,
+                    isClassification
+                );
+            } else {
+                showSingleResult(
+                    modelsToRun[0],
+                    predictions[0],
+                    isClassification
+                );
+            }
+
+            document.getElementById("resultSection")
+                .classList.remove("hidden");
+
+        } catch (error) {
+            const results = document.getElementById("results");
+            results.textContent = "Error: " + error.message;
+
+            document.getElementById("resultSection")
+                .classList.remove("hidden");
+        }
+
+        button.disabled = false;
+        updateInterfaceButton();
+    });
+
+    function updateInterfaceButton() {
+        document.getElementById("predictButton").textContent =
+            modeSelect.value === "compare"
+                ? "Compare Models"
+                : "Run Prediction";
+    }
+
+    loadModels();
+    updateInterface();
+
+</script>
+
+</body>
+</html>
